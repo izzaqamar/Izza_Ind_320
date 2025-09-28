@@ -1,27 +1,53 @@
 import streamlit as st
 import pandas as pd
 
-st.title("🌦️ Weather Data Table ")
+st.markdown('<h1 style="color:blue;">🌦️ Weather Data Table</h1>', unsafe_allow_html=True)
 
 #csv_path = "open-meteo-subset.csv"
 
 @st.cache_data
 def read_data():
-    open_meteo_df = pd.read_csv("open-meteo-subset.csv", parse_dates=['time'])
-    open_meteo_df.set_index('time', inplace=True)
+    open_meteo_df = pd.read_csv("open-meteo-subset.csv")
     return open_meteo_df
 
+#Importing data
 open_meteo_df= read_data()
 
-first_month_df = open_meteo_df[(open_meteo_df.index.year == open_meteo_df.index[0].year) & (open_meteo_df.index.month == open_meteo_df.index[0].month)]
+#Time column to datetime format
+open_meteo_df['time']=pd.to_datetime(open_meteo_df['time'])
 
-st.markdown("### 📊 Line Charts (First Month)")
-for column in first_month_df.columns:
- with st.container():
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        col1.subheader(f"{column} over time")
-        #st.header(f"{column} over time")
-        #st.markdown(f"**{column}**")
-    with col2:
-        st.line_chart(first_month_df[column])
+#Showing imported data as an editable table
+st.data_editor(open_meteo_df,hide_index=True)
+
+#Filtering the dataframe for month of January
+df_jan=open_meteo_df[(open_meteo_df['time']>= '2020-01-01') & (open_meteo_df['time']<= '2020-01-31')]
+
+#Creating a variables column and values excluding time
+variables = [col for col in df_jan.columns if col != "time"]
+values=[df_jan[col].tolist() for col in variables]
+
+#Restructure our dataframe to use LineChartColumn
+data_df=pd.DataFrame({'Weather Variable': variables, 'Values': values})
+
+#Adding text
+st.markdown('<span style="color:blue;">Linecharts display hourly changes for each weather variable during January.</span>', unsafe_allow_html=True)
+
+#Creating the intercative table
+st.data_editor(data_df,column_config={"Values": st.column_config.LineChartColumn
+                                      ('First Month Insights',
+                                      help="Variable trend in January",color="blue")},hide_index=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

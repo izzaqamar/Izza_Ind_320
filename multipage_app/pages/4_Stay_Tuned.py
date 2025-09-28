@@ -18,7 +18,7 @@ st.markdown("""
         font-size: 5em;
         font-weight: bold;
         color: white;
-        text-shadow: 2px 2px 10px #f0f;
+        text-shadow: 2px 2px 10px #1E90FF;
         animation: pulse 2s infinite;
     }
     @keyframes pulse {
