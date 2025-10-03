@@ -30,7 +30,7 @@ values=[df_jan[col].tolist() for col in variables]
 data_df=pd.DataFrame({'Weather Variable': variables, 'Values': values})
 
 #Adding text
-st.markdown('<span style="color:blue;">Linecharts display hourly changes for each weather variable during January.</span>', unsafe_allow_html=True)
+st.markdown('<span style="color:blue;">Linecharts display hourly changes for each weather variable during January 2020.</span>', unsafe_allow_html=True)
 
 #Creating the intercative table
 st.data_editor(data_df,column_config={"Values": st.column_config.LineChartColumn
