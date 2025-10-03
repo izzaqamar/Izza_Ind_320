@@ -45,10 +45,10 @@ if selected_option == 'All variables':
     graph_all=alt.Chart(df_selected).mark_line().encode(
         x=alt.X('time:T',title='Year 2020'),
         y=alt.Y('value:Q',title='Weather data over 2020'),
-        color=alt.Color('variable:N', title='Variable'),
+        color=alt.Color('variable:N', title='Variables'),
         tooltip=['time:T', 'value:Q']).properties( width=800,height=400,title= f'Graph of {selected_option} over Year 2020').interactive()
-    st.markdown('<span style="color:blue;">Hover over the chart to inspect specific values.</span>', unsafe_allow_html=True)
     st.altair_chart(graph_all, use_container_width=True)
+    st.markdown('<span style="color:blue;">Hover over the chart to inspect specific values.</span>', unsafe_allow_html=True)
 
 #Creating plot of each column
 elif selected_option != "-- Select --":
