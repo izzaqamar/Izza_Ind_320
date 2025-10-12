@@ -29,7 +29,7 @@ all_items = get_data()
 
 # Convert to Pandas DataFrame
 mongodb_df = pd.DataFrame(all_items)
-#Getting the date in right format
+#Getting the time in right format
 mongodb_df['startTime'] = pd.to_datetime(mongodb_df['startTime'])
 
 # Display first 5 rows
