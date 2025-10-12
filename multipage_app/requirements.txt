@@ -2,3 +2,5 @@ pandas
 matplotlib
 streamlit
 altair
+pymongo== 4.14.1
+pyarrow
