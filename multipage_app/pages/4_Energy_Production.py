@@ -27,8 +27,8 @@ all_items = get_data()
 
 # Convert to Pandas DataFrame
 mongodb_df = pd.DataFrame(all_items)
-#Getting the time in right format
-mongodb_df['startTime'] = pd.to_datetime(mongodb_df['startTime'])
+#Getting the time in UTC format
+mongodb_df['startTime'] = pd.to_datetime(mongodb_df['startTime'], utc=True)
 
 st.markdown("## **Visualisations in this dashboard are for the data fetched from MongoDB**")
 
@@ -49,7 +49,7 @@ with col_left:
     fig = px.pie(filtered_df_area,
         names="productionGroup",   
         values="total_production",  
-        title="Pie Plot of Production Quantity")
+        title=(f"Pie Plot of {selected_price_area} Production Quantity"))
 
     #Showing the figure
     fig.update_traces(textinfo='percent+label',textposition='outside',pull=[0.1, 0.1, 0],textfont_size=12)
@@ -66,6 +66,7 @@ with col_right:
     #Extracting all the production groups in a list
     production_groups=mongodb_df['productionGroup'].unique().tolist() 
 
+
     #Adding an st.pills to select multiple groups
     selected_group=st.pills("Select the production groups:",production_groups,selection_mode="multi")
 
@@ -77,6 +78,7 @@ with col_right:
 
     #Adding a selctbox to choose any month
     selected_month = st.selectbox("Select a month:", months)
+
 
     #Filtering data for selected price area,month and selected group and then grouping and aggregating accordingly
     filtered_df_month_group_area=mongodb_df[(mongodb_df["priceArea"]==selected_price_area)&(mongodb_df["productionGroup"].isin(selected_group))&(mongodb_df["month"]==selected_month)]
