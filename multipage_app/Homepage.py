@@ -6,3 +6,4 @@ st.sidebar.success("Select a page above")
 
 st.markdown("""<p style='font-size:18px; color:black;'>
    ☀️ Sunny days or 🌧️ rainy nights, let's explore the weather trends together! 🌦️</p>""", unsafe_allow_html=True)
+
