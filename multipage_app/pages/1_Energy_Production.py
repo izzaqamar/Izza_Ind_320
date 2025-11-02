@@ -7,10 +7,8 @@ import calendar
 
 if "selected_price_area" not in st.session_state:
     st.session_state.selected_price_area = 'NO1'
-
-st.write("The selected price area is :", (st.session_state.selected_price_area))
-st.write("SESSION ID:", id(st.session_state))
-#st.session_state.setdefault("selected_price_area", 'NO1')
+    
+st.write("Selected area:", (st.session_state.selected_price_area))
 
 # Initialize connection.
 # Uses st.cache_resource to only run once.

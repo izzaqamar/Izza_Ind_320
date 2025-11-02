@@ -4,21 +4,17 @@ import streamlit as st
 import altair as alt
 from datetime import date
 
-
-
 if "df_city" not in st.session_state:
-    st.warning('Select an area and run page new_A first')
+    st.warning('Run page First Month Insights first')
     st.stop()  # stops execution of the rest of the script
-
 df_city=st.session_state['df_city']
-st.write('The selected area is:', st.session_state['selected_price_area'])
-#st.write('The downloaded data is for selected area is:',df_city.head())
-st.write("SESSION ID:", id(st.session_state))
+
+st.write("Selected area:", (st.session_state.selected_price_area))
+st.write('Area Name:',st.session_state.area_name)
 
 st.markdown('<h1 style="color:blue;">Weather Data Visualization Dashboard</h1>', 
     unsafe_allow_html=True)
 st.markdown(""" Explore normalized weather data from 2021. Select months and weather variables to visualize trends over time.""")
-
 
 # Fetch data
 
