@@ -5,7 +5,7 @@ import altair as alt
 from datetime import date
 
 if "df_city" not in st.session_state:
-    st.warning('Run page First Month Insights first')
+    st.warning('Select area from page 2 and run page First Month Insights first')
     st.stop()  # stops execution of the rest of the script
 df_city=st.session_state['df_city']
 

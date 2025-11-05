@@ -41,7 +41,7 @@ st.markdown(" ## **Visualisations of data fetched from MongoDB**")
 col_left,col_right=st.columns(2)
 
 
-# Callback function
+# Callback function for price area
 def update_area():
     # This runs whenever radio selection changes
     st.session_state["selected_price_area"] = st.session_state["price_area_radio"]

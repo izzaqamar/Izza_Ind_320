@@ -24,7 +24,7 @@ st.title('Data from production-elhub.csv')
 ### TAB-1 FUNCTION ###
 
 # Function for STL decomposition with Plotly
-def stl_loess_plotly(production_df, priceArea='NO1', productionGroup='hydro', 
+def stl_loess(production_df, priceArea='NO1', productionGroup='hydro', 
                      period=720, seasonal_smoother=723, trend_smoother=723, robust=True):
     
     # Filter dataframe
@@ -62,12 +62,14 @@ def stl_loess_plotly(production_df, priceArea='NO1', productionGroup='hydro',
                              name='Seasonal', line=dict(color='green')), row=3, col=1)
     # Residual
     fig.add_trace(go.Scatter(x=df.index, y=res.resid, mode='markers', 
-                             name='Residual', marker=dict(size=2,color='lightcoral')), row=4, col=1)
+                             name='Residual', marker=dict(size=2,color='coral')), row=4, col=1)
     
     fig.update_layout(height=900, width=900, title_text=f"STL Decomposition - {selected_area}, {selected_group}",
                       showlegend=False, template='plotly_white')
     
+    #Information regarding STL decomposition
     info = {
+    "original":df["quantityKwh"].describe(),
     "trend_stats": res.trend.describe(),
     "seasonal_stats": res.seasonal.describe(),
     "residual_stats": res.resid.describe(),
@@ -77,6 +79,7 @@ def stl_loess_plotly(production_df, priceArea='NO1', productionGroup='hydro',
 
 ### Function for TAB-2 ###
 
+#Defining function to compute spectogram 
 def plot_spectrogram(priceArea='NO1', productionGroup='hydro',
                             window_length=168, window_overlap=84):
     df_spectogram = production_df.copy()
@@ -121,9 +124,10 @@ def plot_spectrogram(priceArea='NO1', productionGroup='hydro',
     plt.setp(axs[1].xaxis.get_majorticklabels(), rotation=45)
 
     return fig
+
 st.write('Session state area (before selection):',st.session_state.selected_price_area)
 
-#Coulmns to add UI elements
+#Coulmns common to both tabs to add UI elements
 col1,col2=st.columns(2)
 with col1:
     price_area=sorted(production_df['priceArea'].unique())
@@ -145,7 +149,7 @@ with col2:
 tab1,tab2 = st.tabs(["Tab-1","Tab-2"])
 
 with tab1:
-    st.title("STL Decomposition for Quantity(Kwh)")
+    st.markdown("### STL Decomposition for Quantity(Kwh)")
     col1,col2=st.columns(2)
     with col1:
         # Input from user
@@ -159,39 +163,32 @@ with tab1:
         
     with col2:
         #User to select robust measure to see difference.Radio button with True as default
-        selected_robust = st.radio("Select robust option:",[True, False],index=0  )
+        selected_robust = st.radio("Select robust option:",[True, False],index=1  )
 
     #Function call
-    fig1,res1,info=stl_loess_plotly(production_df, priceArea=selected_area, productionGroup=selected_group, 
+    fig1,res1,info=stl_loess(production_df, priceArea=selected_area, productionGroup=selected_group, 
                      period=period_hours, seasonal_smoother=seasonal_smoother, trend_smoother=trend_smoother, robust=selected_robust )
-    st.plotly_chart(fig1, use_container_width=True,key="tab_2")
+    st.plotly_chart(fig1, use_container_width=True)
     st.write(info)
 
 with tab2:
-    st.title("Production Spectrogram")
+    st.markdown("### Spectrogram for Production Quantity")
+    #MAking column within tab to add UI elements
     col1,col2=st.columns(2)
     with col1:
         #Input from user
-        window_length = st.number_input(
-        "Window length (hours)",
-        min_value=24,
-        max_value=336,
-        value=168,
-        step=24)
+        window_length = st.number_input( "Window length (hours)",
+        min_value=24,max_value=336,value=168,step=24)
     with col2:
         # Set a safe default for overlap
         default_overlap = min(84, window_length // 2)
         #Input from user
-        window_overlap = st.number_input(
-        "Window overlap (hours)",
-        min_value=0,
+        window_overlap = st.number_input("Window overlap (hours)",min_value=0,
         max_value=window_length - 1,  # dynamically limits overlap to less than window length
-        value=default_overlap,
-        step=12)
+        value=default_overlap,step=12)
 
-    # Generate figure
+    #Function call
     fig = plot_spectrogram(priceArea=selected_area,productionGroup=selected_group,window_length=window_length,window_overlap=window_overlap)
-    
     # Display figure in Streamlit
     st.pyplot(fig)
 

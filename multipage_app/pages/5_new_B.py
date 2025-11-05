@@ -7,7 +7,7 @@ from sklearn.neighbors import LocalOutlierFactor
 import scipy.stats as stats
 
 if "df_city" not in st.session_state:
-    st.warning('Run page First Month Insights first')
+    st.warning('Select area from page 2 and run page First Month Insights first')
     st.stop()  # stops execution of the rest of the script
 
 df_city=st.session_state['df_city']
@@ -15,7 +15,9 @@ st.title('Data from Open-Meteo API')
 st.write("Selected area:", (st.session_state.selected_price_area))
 st.write('Area Name:',st.session_state.area_name)
 
-#Contains tab-1:Outlier/SPC analysis   tab-2:Anomaly/LOF analysis
+#Contains tab-1: Temp-Outlier/SPC analysis   tab-2:Precipitation-Anomaly/LOF analysis
+# Tabs 
+tab1, tab2 = st.tabs(["Tab 1", "Tab 2"])
 
 ### TAB-1 FUNCTION ###
 
@@ -39,19 +41,21 @@ def temp_outliers(df_city, dct_cutoff_hours=168, n_std=3):
     temp_dct_hp[:k_cut] = 0
     temp_satv = idct(temp_dct_hp, type=2, norm='ortho')
 
-    # SATV robust SPC boundaries
-
     # Proportion of data to trim from both ends for robust statistics
     trim_proportion = 0.05
+    
     #Compute the trimmed mean (ignores extreme values)
     trimmed_mean_val = stats.trim_mean(temp_satv, trim_proportion)
     sorted_data = np.sort(temp_satv)
     cut = int(trim_proportion * N)
+    
     #Compute standard deviation of the trimmed data
     trimmed_std_val = np.std(sorted_data[cut:N-cut], ddof=0)
+    
     # Compute upper and lower SPC boundaries using n standard deviations
     upper_bound = trimmed_mean_val + n_std * trimmed_std_val
     lower_bound = trimmed_mean_val - n_std * trimmed_std_val
+    
     # Identify outliers beyond the SPC boundaries
     outliers_mask = (temp_satv > upper_bound) | (temp_satv < lower_bound)
     
@@ -90,68 +94,19 @@ def temp_outliers(df_city, dct_cutoff_hours=168, n_std=3):
         legend=dict(x=0.01, y=0.99),template='plotly_white',
         height=500,width=900)
     
-    #Summary
-    summary = f"""Summary 
-    --Number of outliers: {np.sum(outliers_mask)}
-    --Number of inliers: {N - np.sum(outliers_mask)}"""
+
+    # Summary
+    summary = f"""**Summary**  
+    - Number of inliers: {N - np.sum(outliers_mask)}
+    - Number of outliers: {np.sum(outliers_mask)} """
     return fig,summary
 
 
-if "df_city" not in st.session_state:
-    st.warning('Select area on Page 2 and run page new_A first')
-    st.stop()  # stops execution of the rest of the script
-
-df_city=st.session_state['df_city']
-
-# Tabs 
-tab1, tab2 = st.tabs(["Tab 1", "Tab 2"])
-
-#Function for TAB-1
-    # --- Function ---
-    #Keeps local seasonality effects when n= 10--30
-
-def precipitation_anomalies_plotly(df,n_neighbors=20, outlier_proportion=0.01):
-        # Data is in 2D shape for LOF
-        precipitation = [[x] for x in df['precipitation']]
-
-        # Apply Local Outlier Factor
-        lof = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=outlier_proportion)
-        pred_labels = lof.fit_predict(precipitation)
-
-        outliers = pred_labels == -1
-        inliers = pred_labels == 1
-
-        # Create Plotly figure
-        fig = go.Figure()
-
-        # Plot inliers
-        fig.add_trace(go.Scatter(x=df['date'][inliers], y=df['precipitation'][inliers],
-            mode='markers',name='Inliers',marker=dict(color='royalblue', size=6),
-            hovertemplate='Date: %{x}<br>Precipitation: %{y:.2f} mm<extra></extra>'))
-
-        # Plot outliers
-        fig.add_trace(go.Scatter(x=df['date'][outliers],y=df['precipitation'][outliers],
-            mode='markers',name='Outliers',marker=dict(color='red', size=8, symbol='circle-open'),
-            hovertemplate='Date: %{x}<br>Outlier: %{y:.2f} mm<extra></extra>'))
-
-        # Layout
-        fig.update_layout(title="Precipitation Anomalies Detected by LOF",xaxis_title="Date",
-            yaxis_title="Precipitation (mm)",template="plotly_white",
-            hovermode="closest",legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
-
-        # Summary
-        summary = f"""**Summary**  
-        - Proportion of outliers: {outlier_proportion}  
-        - Number of inliers: {np.sum(inliers)}  
-        - Number of outliers: {np.sum(outliers)}"""
-
-        return fig, summary
-
 #Function for TAB-2
-    # --- Function ---
+    # Define function for anoamilies in precipiation 
     #Keeps local seasonality effects when n= 10--30
 
-def precipitation_anomalies_plotly(df,n_neighbors=20, outlier_proportion=0.01):
+def precipitation_anomalies(df,n_neighbors=20, outlier_proportion=0.01):
         # Data is in 2D shape for LOF
         precipitation = [[x] for x in df['precipitation']]
 
@@ -185,25 +140,28 @@ def precipitation_anomalies_plotly(df,n_neighbors=20, outlier_proportion=0.01):
         - Proportion of outliers: {outlier_proportion}  
         - Number of inliers: {np.sum(inliers)}  
         - Number of outliers: {np.sum(outliers)}"""
-
         return fig, summary
+
 with tab1:
-    st.title('Temperature Outliers (SATV)')
+    st.markdown('### Temperature Outliers (SATV)')
     col1,col2=st.columns(2)
     with col1:
+        #Add a number input UI element to select standard deviation
         n_std=st.number_input("Select standard deviation:",min_value= 1, max_value=5,value= 3, step=1)
     with col2:
+        #Add a number input UI element to select cutoff period
         cutoff_hours = st.number_input("Select cutoff period (hours):",
         min_value=24,max_value=2160,   # up to ~3 months
         value=168,         # default = 1 week
         step=24)           # change in 1-day increments
 
-    fig,summary = temp_outliers(df_city, dct_cutoff_hours=cutoff_hours, n_std=n_std)#default value is 3 from slider
+    #Call function
+    fig,summary = temp_outliers(df_city, dct_cutoff_hours=cutoff_hours, n_std=n_std) #default value is 3 from slider
     st.plotly_chart(fig, use_container_width=True,)
-    st.text(summary)
+    st.write(summary)
 
 with tab2:
-    st.title("Precipitation Anomaly Detection (LOF)")
+    st.markdown("### Precipitation Anomaly Detection (LOF)")
     col1,col2=st.columns(2)
     with col1:
         #Add a slider to select outlier proportion
@@ -212,7 +170,7 @@ with tab2:
         #Add a slider to select n_neighbors
         n_neighbors=st.slider("Select number of neighbors:",10,40,20,step=5)
     #Call function
-    fig, summary = precipitation_anomalies_plotly(df_city,n_neighbors, outlier_proportion)
+    fig, summary = precipitation_anomalies(df_city,n_neighbors, outlier_proportion)
     st.plotly_chart(fig, use_container_width=True,key='tab_1')
-    st.markdown(summary)
+    st.write(summary)
 

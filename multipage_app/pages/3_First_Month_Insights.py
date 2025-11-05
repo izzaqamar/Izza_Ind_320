@@ -65,7 +65,7 @@ def api_call(coords,year):
     hourly_data["wind_direction_10m"] = hourly_wind_direction_10m
 
     hourly_dataframe = pd.DataFrame(data = hourly_data)
-    #print("\nHourly_data\n", hourly_dataframe)
+    
     return hourly_dataframe
 
 #Returns (Latitude, Longitude) for a given PriceAreaCode.
@@ -85,7 +85,9 @@ if "df_city" not in st.session_state:
     df_city['date'] = df_city['date'].dt.tz_localize(None)
     # Save in session state
     st.session_state.df_city = df_city
-
+else:
+    # Use existing data from session state
+    df_city = st.session_state.df_city
 
 #To get the AREA NAME corresponding to selected city code
 def area_name(selected_city_code):
@@ -94,14 +96,16 @@ def area_name(selected_city_code):
             return city
 st.session_state.area_name=area_name(st.session_state.selected_price_area)
 
-st.write("Selected area:", (st.session_state.selected_price_area))
+st.write("Selected area from session state:", (st.session_state.selected_price_area))
 st.write('Area Name:',st.session_state.area_name)
 st.markdown('<h1 style="color:blue;">🌦️ Weather Data </h1>', unsafe_allow_html=True)
 
 #Importing data
 open_meteo_df= st.session_state.df_city
+
 #On rerun, month column (January)is added which is dropped
 open_meteo_df.drop('month', axis=1, inplace=True, errors='ignore')
+
 #Renaming the column as in previous task it was named time instead of date
 open_meteo_df['time'] = (open_meteo_df['date'])
 
