@@ -68,7 +68,7 @@ def stl_loess(production_df, priceArea='NO1', productionGroup='hydro',
                       showlegend=False, template='plotly_white')
     
     #Information regarding STL decomposition
-    info = {
+    info = { 
     "original":df["quantityKwh"].describe(),
     "trend_stats": res.trend.describe(),
     "seasonal_stats": res.seasonal.describe(),
@@ -100,32 +100,35 @@ def plot_spectrogram(priceArea='NO1', productionGroup='hydro',
     t_dates = time_index[0] + pd.to_timedelta(t, unit='D')
     magnitude = np.abs(Zxx)
     log_magnitude = np.log1p(magnitude)
+
+    #  Plotly subplots
+    fig = make_subplots(rows=2, cols=1,
+        shared_xaxes=True,vertical_spacing=0.08,
+        subplot_titles=("Production Quantity Over Time", "STFT Spectrogram"))
+
+    # Actual data plot
+    fig.add_trace(go.Scatter(x=time_index, y=data, mode='lines', name='Quantity (kWh)'),
+        row=1, col=1)
+
+    # Spectrogram heatmap
+    fig.add_trace(go.Heatmap(
+            x=t_dates,y=f,z=log_magnitude,
+            colorscale='Viridis',colorbar=dict(title='Amplitude')),
+        row=2, col=1)
+
+    # Update layout
+    fig.update_layout(height=800,
+        title_text='Production Data and STFT Spectrogram',)
     
-    # Compute min and max
-    log_min = np.min(log_magnitude)
-    log_max = np.max(log_magnitude)
+    fig.update_xaxes(tickformat='%Y-%m',
+        tickangle=45)
     
-    # Plot
-    fig, axs = plt.subplots(2, 1, figsize=(14, 8))
-    axs[0].plot(time_index, data)
-    axs[0].set_xlim(time_index[0], time_index[-1])
-    axs[0].set_ylabel('Quantity(kwh)')
-    axs[0].set_title('Production Quantity Over Time')
-
-    pcm1 = axs[1].pcolormesh(t_dates, f, log_magnitude, shading='gouraud', vmin=log_min, vmax=log_max)
-    axs[1].set_ylabel('Frequency [Hz]')
-    axs[1].set_xlabel('Date')
-    axs[1].set_title('STFT Spectrogram')
-    fig.colorbar(pcm1, ax=axs[1], label='Amplitude')
-
-    # Format x-axis with months
-    axs[1].xaxis.set_major_locator(mdates.MonthLocator())
-    axs[1].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-    plt.setp(axs[1].xaxis.get_majorticklabels(), rotation=45)
-
+    fig.update_yaxes(title_text='Quantity (kWh)', row=1, col=1)
+    fig.update_yaxes(title_text='Frequency [Hz]', row=2, col=1)
+    
     return fig
 
-st.write('Session state area (before selection):',st.session_state.selected_price_area)
+st.write('Session state area:',st.session_state.selected_price_area)
 
 #Coulmns common to both tabs to add UI elements
 col1,col2=st.columns(2)
@@ -136,7 +139,7 @@ with col1:
     selected_area = st.pills("Select Price Area", price_area)
     if  selected_area==None:
         selected_area=default_area
-    st.write('Selected area :',selected_area)
+    st.write('Selected area for this page only:',selected_area)
 with col2:
     production_group=sorted(production_df['productionGroup'].unique())
     default_group='hydro'
@@ -169,7 +172,7 @@ with tab1:
     fig1,res1,info=stl_loess(production_df, priceArea=selected_area, productionGroup=selected_group, 
                      period=period_hours, seasonal_smoother=seasonal_smoother, trend_smoother=trend_smoother, robust=selected_robust )
     st.plotly_chart(fig1, use_container_width=True)
-    st.write(info)
+    st.write('Summary',info)
 
 with tab2:
     st.markdown("### Spectrogram for Production Quantity")
@@ -188,7 +191,6 @@ with tab2:
         value=default_overlap,step=12)
 
     #Function call
-    fig = plot_spectrogram(priceArea=selected_area,productionGroup=selected_group,window_length=window_length,window_overlap=window_overlap)
+    fig1 = plot_spectrogram(priceArea=selected_area,productionGroup=selected_group,window_length=window_length,window_overlap=window_overlap)
     # Display figure in Streamlit
-    st.pyplot(fig)
-
+    st.plotly_chart(fig1, use_container_width=True)
