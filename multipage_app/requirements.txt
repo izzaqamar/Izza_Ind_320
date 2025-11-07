@@ -5,3 +5,10 @@ altair
 pymongo== 4.14.1
 pyarrow
 plotly
+scipy
+statsmodels
+requests-cache
+retry-requests
+openmeteo-requests
+altair
+scikit-learn
