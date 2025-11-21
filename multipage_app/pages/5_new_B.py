@@ -24,7 +24,6 @@ tab1, tab2 = st.tabs(["Tab 1", "Tab 2"])
 # Temperature outliers function using df_city
 # dct_cutoff_hours: Default for weekly values
 def temp_outliers(df_city, dct_cutoff_hours=168, n_std=3):
-    
     # Original temperature converted to numpy array to pass to DCT
     temp = df_city['temperature_2m'].to_numpy(dtype=float)
     dates = pd.to_datetime(df_city['date'])
@@ -33,73 +32,61 @@ def temp_outliers(df_city, dct_cutoff_hours=168, n_std=3):
     N = len(temp)
     temp_dct = dct(temp, type=2, norm='ortho')
 
-    # Cutoff (default: weekly)
-    k_cut = int(2 * N / dct_cutoff_hours)
+    # Computing sampling interval automatically from timestamps
+    sampling_interval_hours = (dates[1] - dates[0]).total_seconds() / 3600.0
+
+    # Cutoff index mapping
+    k_cut = int((N * sampling_interval_hours) / dct_cutoff_hours)
 
     # High-pass filtering and SATV
     temp_dct_hp = temp_dct.copy()
     temp_dct_hp[:k_cut] = 0
     temp_satv = idct(temp_dct_hp, type=2, norm='ortho')
 
-    # Proportion of data to trim from both ends for robust statistics
-    trim_proportion = 0.05
-    
-    #Compute the trimmed mean (ignores extreme values)
-    trimmed_mean_val = stats.trim_mean(temp_satv, trim_proportion)
-    sorted_data = np.sort(temp_satv)
-    cut = int(trim_proportion * N)
-    
-    #Compute standard deviation of the trimmed data
-    trimmed_std_val = np.std(sorted_data[cut:N-cut], ddof=0)
-    
-    # Compute upper and lower SPC boundaries using n standard deviations
-    upper_bound = trimmed_mean_val + n_std * trimmed_std_val
-    lower_bound = trimmed_mean_val - n_std * trimmed_std_val
-    
+    # Robust statistics using MAD
+    median_val = np.median(temp_satv)
+    mad = np.median(np.abs(temp_satv - median_val))
+    robust_std_val = 1.4826 * mad
+
+    # SPC boundaries
+    upper_bound = median_val + n_std * robust_std_val
+    lower_bound = median_val - n_std * robust_std_val
+
     # Identify outliers beyond the SPC boundaries
     outliers_mask = (temp_satv > upper_bound) | (temp_satv < lower_bound)
-    
-    #Low frequency dct to plot boundaries
+
+    # Low frequency DCT to plot boundaries
     temp_dct_low = temp_dct.copy()
-    temp_dct_low[k_cut:] = 0  
+    temp_dct_low[k_cut:] = 0
     temp_lowfreq = idct(temp_dct_low, type=2, norm='ortho')
 
     upper_thresh_orig = temp_lowfreq + upper_bound
     lower_thresh_orig = temp_lowfreq + lower_bound
 
-    #Plotting
-    fig=go.Figure()
-    
-    #Plot temperature
-    fig.add_trace(go.Scatter(x=dates,y=temp,
-        mode='lines',name='Temperature',line=dict(color='royalblue')))
-    
-    # Scatter for outliers
+    # Plotting
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=dates, y=temp,
+        mode='lines', name='Temperature', line=dict(color='royalblue')))
     fig.add_trace(go.Scatter(x=dates[outliers_mask], y=temp[outliers_mask],
-        mode='markers',name='Outliers',marker=dict(color='red', size=5)))
-    
-    # Upper threshold
-    fig.add_trace(go.Scatter(x=dates,y=upper_thresh_orig,
-        mode='lines',name='Upper SATV Boundary',
+        mode='markers', name='Outliers', marker=dict(color='red', size=5)))
+    fig.add_trace(go.Scatter(x=dates, y=upper_thresh_orig,
+        mode='lines', name='Upper SPC Boundary',
         line=dict(color='orange', dash='dashdot')))
-    
-    # Lower threshold
-    fig.add_trace(go.Scatter(x=dates,y=lower_thresh_orig,
-        mode='lines',name='Lower SATV Boundary',
+    fig.add_trace(go.Scatter(x=dates, y=lower_thresh_orig,
+        mode='lines', name='Lower SPC Boundary',
         line=dict(color='orange', dash='dashdot')))
-    
-    # Layout
-    fig.update_layout(title="Temperature with SATV-based Outliers",
-        xaxis_title="Date",yaxis_title="Temperature (°C)",
-        legend=dict(x=0.01, y=0.99),template='plotly_white',
-        height=500,width=900)
-    
+
+    fig.update_layout(title="Temperature with SPC Outliers (MAD-based)",
+        xaxis_title="Date", yaxis_title="Temperature (°C)",
+        legend=dict(x=0.01, y=0.99), template='plotly_white',
+        height=500, width=900)
 
     # Summary
     summary = f"""**Summary**  
-    - Number of inliers: {N - np.sum(outliers_mask)}
-    - Number of outliers: {np.sum(outliers_mask)} """
-    return fig,summary
+    - Number of inliers: {N - np.sum(outliers_mask)}  
+    - Number of outliers: {np.sum(outliers_mask)}"""
+
+    return fig, summary
 
 
 #Function for TAB-2
