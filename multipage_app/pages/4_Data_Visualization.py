@@ -34,7 +34,8 @@ df['time'] = (df['date'])
 df['month'] = df['time'].dt.month_name()
 
 #Converting wide format to long format data so its easy to use altair
-columns=[column for column in df.columns if column not in ['time','month']]
+#columns=[column for column in df.columns if column not in ['time','month']]
+columns = [column for column in df.columns if column not in ['time','month','date']]
 df_melted = df.melt(id_vars=['time','month'],value_vars=columns,var_name='variable',value_name='value' )
 
 #Filtering dataframe for selected months range
@@ -49,8 +50,8 @@ if selected_option == 'All variables':
     st.write(f"You selected: {selected_option}")
     st.text(" ")
     graph_all=alt.Chart(df_selected).mark_line().encode(
-        x=alt.X('time:T',title='Year 2020'),
-        y=alt.Y('value:Q',title='Weather data over 2020'),
+        x=alt.X('time:T',title='Year 2021'),
+        y=alt.Y('value:Q',title='Weather data over 2021'),
         color=alt.Color('variable:N', title='Variables'),
         tooltip=['time:T', 'value:Q']).properties( width=800,height=400,title= f'Graph of {selected_option} over Year 2021').interactive()
     st.altair_chart(graph_all, use_container_width=True)
@@ -62,7 +63,7 @@ elif selected_option != "-- Select --":
     st.text(" ")
     df_col = df_selected[df_selected['variable'] == selected_option]
     graph_col=alt.Chart(df_col).mark_line().encode(
-    x=alt.X('time:T', title='Year 2020'),
+    x=alt.X('time:T', title='Year 2021'),
     y=alt.Y('value:Q',title=selected_option),
     color=alt.Color('variable:N', title='Variable'),
     tooltip=['time:T', 'value:Q']).properties( width=800,height=400,title= f'Graph of {selected_option} over Year 2021').interactive()
