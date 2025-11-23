@@ -7,35 +7,15 @@ import calendar
 
 if "selected_price_area" not in st.session_state:
     st.session_state.selected_price_area = 'NO1'
-    
-st.write("Selected area:", (st.session_state.selected_price_area))
 
-# Initialize connection.
-# Uses st.cache_resource to only run once.
-@st.cache_resource
-def init_connection():
-    return pymongo.MongoClient(st.secrets["mongo"]["uri"])
+from utils import get_production_data 
 
-client = init_connection()
+# DataFrame
+year = 2021
+mongodb_df = get_production_data()
+mongodb_df = mongodb_df[mongodb_df['startTime'].dt.year == year]
 
-# Pull data from the collection.
-# Uses st.cache_data to only rerun when the query changes or after 10 min.
-@st.cache_data(ttl=600)
-def get_data():
-    database=client['ind320_production_db']
-    collection=database['ind320_production_table']
-    items = collection.find()
-    items = list(items)
-    return items
-
-all_items = get_data()
-
-# Convert to Pandas DataFrame
-mongodb_df = pd.DataFrame(all_items)
-#Getting the time in UTC format
-mongodb_df['startTime'] = pd.to_datetime(mongodb_df['startTime'], utc=True)
-
-st.markdown(" ## **Visualisations of data fetched from MongoDB**")
+st.markdown(" ### **Visualisations of Energy Production (2021)**")
 
 #Using st.columns to split view in 2 parts
 col_left,col_right=st.columns(2)

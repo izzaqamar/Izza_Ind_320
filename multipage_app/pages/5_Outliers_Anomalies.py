@@ -6,14 +6,19 @@ import plotly.graph_objects as go
 from sklearn.neighbors import LocalOutlierFactor
 import scipy.stats as stats
 
-if "df_city" not in st.session_state:
-    st.warning('Select area from page 2 and run page First Month Insights first')
-    st.stop()  # stops execution of the rest of the script
+from utils import DATA,api_call, get_coords_by_price_code, area_name
+# Let the user select a Price Area by city name
+selected_price_area = st.selectbox("Select a Price Area:",
+    options=[info["PriceAreaCode"] for info in DATA.values()],
+    format_func=lambda code: area_name(code) )
 
-df_city=st.session_state['df_city']
-st.title('Data from Open-Meteo API')
-st.write("Selected area:", (st.session_state.selected_price_area))
-st.write('Area Name:',st.session_state.area_name)
+year = 2021
+
+# Get coordinates from utils
+coords = get_coords_by_price_code(selected_price_area)
+
+# Call the API
+df_city = api_call(coords, year)
 
 #Contains tab-1: Temp-Outlier/SPC analysis   tab-2:Precipitation-Anomaly/LOF analysis
 # Tabs 

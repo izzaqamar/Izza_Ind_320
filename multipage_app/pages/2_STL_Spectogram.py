@@ -8,18 +8,14 @@ import matplotlib.pyplot as plt
 from plotly.subplots import make_subplots
 from statsmodels.tsa.seasonal import STL
 
-###Contains tab-1:STL analysis and tab-2:Spectrogram
 
-#Production_elhub.csv
-@st.cache_data
-def read_data():
-    production_df= pd.read_csv(r"production_elhub.csv",
-        parse_dates=['endTime','startTime','lastUpdatedTime'],
-        dtype={'priceArea': 'string', 'productionGroup': 'string'})
-    return production_df
-production_df=read_data()
+# DataFrame
 
-st.title('Data from production-elhub.csv')
+from utils import get_production_data
+year = 2021
+production_df = get_production_data()
+production_df = production_df [production_df ['startTime'].dt.year == year]
+st.markdown('## Energy Data for 2021')
 
 ### TAB-1 FUNCTION ###
 
@@ -128,18 +124,21 @@ def plot_spectrogram(priceArea='NO1', productionGroup='hydro',
     
     return fig
 
-st.write('Session state area:',st.session_state.selected_price_area)
+#st.write('Session state area:',st.session_state.selected_price_area)
 
 #Coulmns common to both tabs to add UI elements
 col1,col2=st.columns(2)
 with col1:
-    price_area=sorted(production_df['priceArea'].unique())
-    default_area = st.session_state.selected_price_area
-    #Add st.pills so user can update area from session state area.
-    selected_area = st.pills("Select Price Area", price_area)
-    if  selected_area==None:
-        selected_area=default_area
-    st.write('Selected area for this page only:',selected_area)
+    # Get unique price areas from your dataframe
+    price_area = sorted(production_df['priceArea'].unique())
+    # Set default area explicitly to "NO1"
+    selected_area = st.pills("Select Price Area", price_area, default="NO1")
+    # Show selection (None until user clicks)
+    if selected_area is None:
+        st.info("Default area is NO1. Please select another if needed.")
+        selected_area = "NO1"
+    #st.write("Selected area for this page only:", selected_area)
+
 with col2:
     production_group=sorted(production_df['productionGroup'].unique())
     default_group='hydro'
@@ -172,7 +171,7 @@ with tab1:
     fig1,res1,info=stl_loess(production_df, priceArea=selected_area, productionGroup=selected_group, 
                      period=period_hours, seasonal_smoother=seasonal_smoother, trend_smoother=trend_smoother, robust=selected_robust )
     st.plotly_chart(fig1, use_container_width=True)
-    st.write('Summary',info)
+    #st.write('Summary',info)
 
 with tab2:
     st.markdown("### Spectrogram for Production Quantity")

@@ -3,22 +3,26 @@ import calendar
 import streamlit as st
 import altair as alt
 from datetime import date
+import plotly.express as px
 
-if "df_city" not in st.session_state:
-    st.warning('Select area from page 2 and run page First Month Insights first')
-    st.stop()  # stops execution of the rest of the script
-df_city=st.session_state['df_city']
 
-st.write("Selected area:", (st.session_state.selected_price_area))
-st.write('Area Name:',st.session_state.area_name)
+from utils import DATA,api_call, get_coords_by_price_code, area_name
 
-st.markdown('<h1 style="color:blue;">Weather Data Visualization Dashboard</h1>', 
+st.markdown(' <h1 style="color:blue;">Weather Data Visualization (2021)</h1>', 
     unsafe_allow_html=True)
-st.markdown(""" Explore normalized weather data from 2021. Select months and weather variables to visualize trends over time.""")
+st.markdown(""" Explore normalized weather data from 2021. Select price area, months and weather variables to visualize trends over time.""")
 
-# Fetch data
+# Let the user select a Price Area  by city name
+selected_price_area = st.selectbox("Select a Price Area:",
+    options=[info["PriceAreaCode"] for info in DATA.values()],
+    format_func=lambda code: area_name(code)) 
+year = 2021
 
-df=st.session_state['df_city']
+# Get coordinates from utils
+coords = get_coords_by_price_code(selected_price_area)
+
+# Call the API
+df= api_call(coords, year)
 
 #Creating a slider to select months using their name
 months = list(calendar.month_name)[1:]
@@ -34,7 +38,6 @@ df['time'] = (df['date'])
 df['month'] = df['time'].dt.month_name()
 
 #Converting wide format to long format data so its easy to use altair
-#columns=[column for column in df.columns if column not in ['time','month']]
 columns = [column for column in df.columns if column not in ['time','month','date']]
 df_melted = df.melt(id_vars=['time','month'],value_vars=columns,var_name='variable',value_name='value' )
 
@@ -45,30 +48,53 @@ df_selected=df_melted[df_melted['month'].isin(selected_months)]
 option = ["-- Select --"] + columns + ['All variables']
 selected_option=st.selectbox('Choose weather variable:',option)
 
-#Creating plot of all columns together
+
+
+# Creating plot of all columns together
 if selected_option == 'All variables':
     st.write(f"You selected: {selected_option}")
     st.text(" ")
-    graph_all=alt.Chart(df_selected).mark_line().encode(
-        x=alt.X('time:T',title='Year 2021'),
-        y=alt.Y('value:Q',title='Weather data over 2021'),
-        color=alt.Color('variable:N', title='Variables'),
-        tooltip=['time:T', 'value:Q']).properties( width=800,height=400,title= f'Graph of {selected_option} over Year 2021').interactive()
-    st.altair_chart(graph_all, use_container_width=True)
+
+    # Plotly line chart for all variables
+    fig_all = px.line(
+        df_selected,
+        x="time",
+        y="value",
+        color="variable",
+        title=f"Graph of {selected_option} over Year 2021",
+        labels={
+            "time": "Year 2021",
+            "value": "Weather data over 2021",
+            "variable": "Variables"
+        }
+    )
+    fig_all.update_layout(width=800, height=400, hovermode="x unified")
+    st.plotly_chart(fig_all, use_container_width=True)
     st.markdown('<span style="color:blue;">Hover over the chart to inspect specific values.</span>', unsafe_allow_html=True)
 
-#Creating plot of each column
+# Creating plot of each column
 elif selected_option != "-- Select --":
     st.write(f"You selected: {selected_option}")
     st.text(" ")
+
     df_col = df_selected[df_selected['variable'] == selected_option]
-    graph_col=alt.Chart(df_col).mark_line().encode(
-    x=alt.X('time:T', title='Year 2021'),
-    y=alt.Y('value:Q',title=selected_option),
-    color=alt.Color('variable:N', title='Variable'),
-    tooltip=['time:T', 'value:Q']).properties( width=800,height=400,title= f'Graph of {selected_option} over Year 2021').interactive()
-    st.altair_chart(graph_col, use_container_width=True)
+
+    # Plotly line chart for single variable
+    fig_col = px.line(
+        df_col,
+        x="time",
+        y="value",
+        color="variable",
+        title=f"Graph of {selected_option} over Year 2021",
+        labels={
+            "time": "Year 2021",
+            "value": selected_option,
+            "variable": "Variable"
+        }
+    )
+    fig_col.update_layout(width=800, height=400, hovermode="x unified")
+    st.plotly_chart(fig_col, use_container_width=True)
     st.markdown('<span style="color:blue;">Hover over the chart to inspect specific values.</span>', unsafe_allow_html=True)
+
 else:
-   st.warning("Select a variable to see the chart.") 
-        
+    st.warning("Select a variable to see the chart.")
