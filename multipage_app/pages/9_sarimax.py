@@ -40,8 +40,8 @@ else:
     col1, col2 = st.columns(2)
     
     with col1:
-        selected_price_area = st.multiselect("Price area(s)", df["priceArea"].dropna().unique(), key="price_area_multiselect")
-        selected_groups = st.multiselect(f"{group_col}(s)", df[group_col].dropna().unique(), key="group_multiselect")
+        selected_price_area = st.multiselect("Select target Price area(s)", df["priceArea"].dropna().unique(), key="price_area_multiselect")
+        selected_groups = st.multiselect(f"Selected target {group_col}(s)", df[group_col].dropna().unique(), key="group_multiselect")
     
     with col2:
         with st.expander("Exogenous Variables"):
@@ -81,115 +81,106 @@ else:
 
 
     # FIT & FORECAST
-    
-    if st.button(" Fit SARIMAX Models and Forecasts"):
 
-        if target_type == "Individual Forecasts (by Area/Group)":
-            for area in selected_price_area:
-                for group in selected_groups:
-                    df_subset = df[(df["priceArea"] == area) &(df[group_col] == group)].copy()
+if st.button(" Fit SARIMAX Models and Forecasts"):
 
-                    if df_subset.empty:
-                        st.warning(f"No data for {area} - {group}")
-                        continue
+    # Individual Forecasts (by Area/Group)
+   
+    if target_type == "Individual Forecasts (by Area/Group)":
+        for area in selected_price_area:
+            for group in selected_groups:
+                df_subset = df[(df["priceArea"] == area) & (df[group_col] == group)].copy()
 
-                    # Restrict and enforce hourly frequency
-                    df_train = df_subset[(df_subset.index >= train_start_ts) &
-                                        (df_subset.index <= train_end_ts)]
-                    # Check for duplicate timestamps BEFORE resampling
-                    #mask = df_train.index.duplicated(keep=False)
-                    #if mask.any():
-                    #    st.warning("Duplicate timestamps found in training data:")
-                    #    st.dataframe(df_train[mask])
-                    #else:
-                    #    st.success("No duplicate timestamps in training data!")
+                if df_subset.empty:
+                    st.warning(f"No data for {area} - {group}")
+                    continue
 
-                    #df_train = df_train.sort_index().asfreq("h")
-                    df_train = df_train.sort_index()
+                # Restrict window
+                df_train = df_subset[(df_subset.index >= train_start_ts) &
+                                     (df_subset.index <= train_end_ts)]
 
-                    if df_train.empty:
-                        st.warning(f"No training data for {area} - {group} in selected window")
-                        continue
+                # Always reset to startTime as index
+                df_train = df_train.reset_index().set_index("startTime").sort_index()
 
-                    y_train = df_train["quantityKwh"].ffill()
+                if df_train.empty:
+                    st.warning(f"No training data for {area} - {group} in selected window")
+                    continue
 
-                    # Build exogenous training matrix 
-                    exog_train = pd.DataFrame(index=y_train.index)
-                    for exog in selected_exog:
-                        if exog == "Total Consumption":
-                            cons = get_consumption_data()
-                            cons['startTime'] = pd.to_datetime(cons['startTime']).dt.tz_localize(None)
-                            series = cons[cons["priceArea"] == area].groupby("startTime")["quantityKwh"].sum()
-                        elif exog == "Total Production":
-                            prod = get_production_data()
-                            prod['startTime'] = pd.to_datetime(prod['startTime']).dt.tz_localize(None)
-                            series = prod[prod["priceArea"] == area].groupby("startTime")["quantityKwh"].sum()
-                        else:
-                            series = df[(df[group_col] == exog) & (df["priceArea"] == area)]["quantityKwh"]
-                            series.index = df[(df[group_col] == exog) & (df["priceArea"] == area)].index
-                        exog_train[exog] = series.reindex(y_train.index).fillna(0)
+                # Collapse to one series
+                y_train = df_train["quantityKwh"].sort_index()
 
-                    # Fit SARIMAX
-                    model = SARIMAX(
-                        y_train,
-                        exog=exog_train if not exog_train.empty else None,
-                        order=(p, d, q),
-                        seasonal_order=(P, D, Q, m),
-                        trend="c",
-                        enforce_stationarity=False,
-                        enforce_invertibility=False
-                    )
-                    result = model.fit(disp=False)
+                # Enforce hourly frequency
+                y_train = y_train.asfreq("h").ffill()
 
-                    # Build exogenous future (repeat last observed values)
-                    if not exog_train.empty:
-                        last_exog = exog_train.iloc[-1]
-                        forecast_start = y_train.index[-1] + pd.Timedelta(hours=1)
-                        forecast_index = pd.date_range(start=forecast_start, periods=forecast_steps, freq="h")
-                        exog_future = pd.DataFrame([last_exog] * forecast_steps, index=forecast_index)
+                # Build exogenous training matrix
+                exog_train = pd.DataFrame(index=y_train.index)
+                for exog in selected_exog:
+                    if exog == "Total Consumption":
+                        cons = get_consumption_data()
+                        cons['startTime'] = pd.to_datetime(cons['startTime']).dt.tz_localize(None)
+                        series = cons[cons["priceArea"] == area].groupby("startTime")["quantityKwh"].sum()
+                    elif exog == "Total Production":
+                        prod = get_production_data()
+                        prod['startTime'] = pd.to_datetime(prod['startTime']).dt.tz_localize(None)
+                        series = prod[prod["priceArea"] == area].groupby("startTime")["quantityKwh"].sum()
                     else:
-                        exog_future = None
+                        series = df[(df[group_col] == exog) & (df["priceArea"] == area)]["quantityKwh"]
+                        series.index = df[(df[group_col] == exog) & (df["priceArea"] == area)].index
+                    exog_train[exog] = series.reindex(y_train.index).fillna(0)
 
-                    # Forecast — keep native index from SARIMAX 
-                    forecast_obj = result.get_forecast(steps=forecast_steps, dynamic=True, exog=exog_future)
-                    forecast_mean = forecast_obj.predicted_mean
-                    conf_int = forecast_obj.conf_int()
+                # Fit SARIMAX
+                model = SARIMAX(
+                    y_train,
+                    exog=exog_train if not exog_train.empty else None,
+                    order=(p, d, q),
+                    seasonal_order=(P, D, Q, m),
+                    trend="c",
+                    enforce_stationarity=False,
+                    enforce_invertibility=False
+                )
+                result = model.fit(disp=False)
 
-                    st.success(f"Forecast complete for {area} - {group}")
+                # Build exogenous future (repeat last observed values)
+                if not exog_train.empty:
+                    last_exog = exog_train.iloc[-1]
+                    forecast_start = y_train.index[-1] + pd.Timedelta(hours=1)
+                    forecast_index = pd.date_range(start=forecast_start, periods=forecast_steps, freq="h")
+                    exog_future = pd.DataFrame([last_exog] * forecast_steps, index=forecast_index)
+                else:
+                    exog_future = None
 
-                    fig = go.Figure()
+                # Forecast
+                forecast_obj = result.get_forecast(steps=forecast_steps, dynamic=True, exog=exog_future)
+                forecast_mean = forecast_obj.predicted_mean
+                conf_int = forecast_obj.conf_int()
 
-                    # Training data (blue line)
-                    fig.add_trace(go.Scatter(
-                        x=y_train.index,
-                        y=y_train.values,
-                        mode='lines',
-                        name='Training Data',
-                        line=dict(color='blue')
-                    ))
+                st.success(f"Forecast complete for {area} - {group}")
 
-                    # Forecast data (orange line, starting from last training point for continuity)
-                    forecast_x = [y_train.index[-1]] + list(forecast_mean.index)
-                    forecast_y = [y_train.values[-1]] + list(forecast_mean.values)
+                # Plot
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=y_train.index, y=y_train.values,
+                    mode='lines', name='Training Data', line=dict(color='blue')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=forecast_mean.index, y=forecast_mean.values,
+                    mode='lines', name='Forecast', line=dict(color='orange')
+                ))
+                fig.add_trace(go.Scatter(
+                    x=list(conf_int.index) + list(conf_int.index[::-1]),
+                    y=list(conf_int.iloc[:, 1]) + list(conf_int.iloc[:, 0][::-1]),
+                    fill='toself', fillcolor='rgba(255,165,0,0.3)',
+                    line=dict(color='rgba(255,255,255,0)'), hoverinfo="skip",
+                    name="Confidence Interval"
+                ))
+                fig.update_layout(title=f"SARIMAX Forecast: {area} - {group}",
+                                  xaxis_title="Time", yaxis_title="quantityKwh",
+                                  template="plotly_white")
 
-                    fig.add_trace(go.Scatter(x=forecast_x,y=forecast_y,
-                        mode='lines',name='Forecast',line=dict(color='orange')))
+                st.plotly_chart(fig, use_container_width=True)
 
-                    # Confidence interval shading (forecast horizon only)
-                    fig.add_trace(go.Scatter(x=list(conf_int.index) + list(conf_int.index[::-1]),
-                        y=list(conf_int.iloc[:, 1]) + list(conf_int.iloc[:, 0][::-1]),fill='toself',
-                        fillcolor='rgba(255,165,0,0.3)',line=dict(color='rgba(255,255,255,0)'),
-                        hoverinfo="all",name="Confidence Interval"))
 
-                    fig.update_layout(title=f"SARIMAX Forecast: {area} - {group}",
-                        xaxis_title="Time",yaxis_title="quantityKwh",template="plotly_white")
-                    st.plotly_chart(fig, use_container_width=True)
-
-                    # Forecast table
-                    df_forecast = pd.DataFrame({"Forecast": forecast_mean,"Lower CI": conf_int.iloc[:, 0],
-                        "Upper CI": conf_int.iloc[:, 1]})
-                    st.subheader(f"Forecast Values for {area} - {group}")
-                    st.dataframe(df_forecast)
+    # Combined Forecast (Total Across Selection)
 
     elif target_type == "Combined Forecast (Total Across Selection)":
         # Filter selection
@@ -204,13 +195,16 @@ else:
 
         # Restrict window
         df_train = df_subset[(df_subset.index >= train_start_ts) &
-                            (df_subset.index <= train_end_ts)]
+                             (df_subset.index <= train_end_ts)]
 
-        # Keep only startTime as index
+        # Always reset to startTime as index
         df_train = df_train.reset_index().set_index("startTime").sort_index()
 
         # Collapse all selected areas/groups into one combined series
         y_train = df_train.groupby("startTime")["quantityKwh"].sum().sort_index()
+
+        # Enforce hourly frequency AFTER aggregation
+        y_train = y_train.asfreq("h").fillna(0)
 
         if y_train.empty:
             st.warning("No training data in selected window")
@@ -232,34 +226,25 @@ else:
         forecast_mean = forecast_obj.predicted_mean
         conf_int = forecast_obj.conf_int()
 
-        # Concatenate last training point to forecast line
-        forecast_x = [y_train.index[-1]] + list(forecast_mean.index)
-        forecast_y = [y_train.values[-1]] + list(forecast_mean.values)
-
-        # Plot single aggregated forecast
+        # Plot
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=y_train.index, y=y_train.values,
-                                mode='lines', name='Training Data', line=dict(color='blue')))
-        fig.add_trace(go.Scatter(x=forecast_x, y=forecast_y,
-                                mode='lines', name='Forecast', line=dict(color='orange')))
+        fig.add_trace(go.Scatter(
+            x=y_train.index, y=y_train.values,
+            mode='lines', name='Training Data', line=dict(color='blue')
+        ))
+        fig.add_trace(go.Scatter(
+            x=forecast_mean.index, y=forecast_mean.values,
+            mode='lines', name='Forecast', line=dict(color='orange')
+        ))
         fig.add_trace(go.Scatter(
             x=list(conf_int.index) + list(conf_int.index[::-1]),
             y=list(conf_int.iloc[:, 1]) + list(conf_int.iloc[:, 0][::-1]),
             fill='toself', fillcolor='rgba(255,165,0,0.3)',
-            line=dict(color='rgba(255,255,255,0)'), hoverinfo="all",
+            line=dict(color='rgba(255,255,255,0)'), hoverinfo="skip",
             name="Confidence Interval"
         ))
-
         fig.update_layout(title="SARIMAX Forecast: Aggregated selection (Summed)",
-                        xaxis_title="Time", yaxis_title="quantityKwh",
-                        template="plotly_white")
-        st.plotly_chart(fig, use_container_width=True)
+                          xaxis_title="Time", yaxis_title="quantityKwh",
+                          template="plotly_white")
 
-        # Forecast table
-        df_forecast = pd.DataFrame({
-            "Forecast": forecast_mean,
-            "Lower CI": conf_int.iloc[:, 0],
-            "Upper CI": conf_int.iloc[:, 1]
-        })
-        st.subheader("Forecast Values (Aggregated Areas & Groups)")
-        st.dataframe(df_forecast)
+        st.plotly_chart(fig, use_container_width=True)

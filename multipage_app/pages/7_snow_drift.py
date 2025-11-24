@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import openmeteo_requests
-from datetime import date, datetime
 import requests_cache
 from retry_requests import retry
 import plotly.express as px
@@ -67,6 +65,34 @@ def compute_yearly_results(df, T, F, theta):
         result["snow_year"] = f"July {y} – June {y+1}"
         results_list.append(result)
     return pd.DataFrame(results_list)
+
+def compute_monthly_results(df, T, F, theta):
+    df = df.copy()
+    df["month"] = df["time"].dt.month
+    df["year"] = df["time"].dt.year
+    # Snow season runs July–June; assign months Jan–Jun to previous year
+    df["snow_season_year"] = df.apply(
+        lambda r: r["year"] - 1 if r["month"] <= 6 else r["year"], axis=1
+    )
+
+    monthly_results = []
+    for (season_year, month), df_month in df.groupby(["snow_season_year", "month"]):
+        df_month = df_month.copy()
+        df_month["Swe_hourly"] = df_month.apply(
+            lambda row: row["precipitation"] if row["temperature_2m"] < 1 else 0, axis=1
+        )
+        total_Swe = df_month["Swe_hourly"].sum()
+        wind_speeds = df_month["wind_speed_10m"].tolist()
+        result = compute_snow_transport(T, F, theta, total_Swe, wind_speeds)
+
+        month_name = pd.to_datetime(str(month), format="%m").strftime("%B")
+        result["Period"] = f"{month_name} {season_year}"
+        result["Qt (tonnes/m)"] = result["Qt (kg/m)"] / 1000
+        result["Type"] = "Monthly"
+        monthly_results.append(result)
+
+    return pd.DataFrame(monthly_results)
+
 
 def compute_average_sector(df):
     sectors_list = []
@@ -162,6 +188,7 @@ def get_weather_api(lat, lon, year):
 
 # STREAMLIT UI
 
+
 st.title("Snow Drift Analysis ")
 
 if "clicked_points" not in st.session_state or not st.session_state.clicked_points:
@@ -171,13 +198,13 @@ if "clicked_points" not in st.session_state or not st.session_state.clicked_poin
         st.session_state["subgroup"] = "Visualization"
         st.session_state["page_name"] = "Maps"
         st.rerun()
-    
+
 else:
     last_point = st.session_state.clicked_points[-1]
     lat = last_point["lat"]
     lon = last_point["lon"]
 
-    year_range = st.slider("Select year range for analysis (start years):",  
+    year_range = st.slider("Select year range for analysis (start years):",
                            min_value=2000, max_value=2024, value=(2010, 2012))
 
     snow_data_list = []
@@ -185,7 +212,7 @@ else:
         df_year = get_weather_api(lat, lon, y)
         snow_data_list.append(df_year)
         st.success(f"Data for snow year {y}-{y+1} loaded successfully")
-    
+
     if snow_data_list:
         df_all = pd.concat(snow_data_list, ignore_index=True)
 
@@ -193,98 +220,84 @@ else:
         F = 30000
         theta = 0.5
 
-        # YEARLY SNOW DRIFT
+        # Compute results
         yearly_results = compute_yearly_results(df_all, T, F, theta)
-
-        st.subheader("Snow Drift per Year")
         yearly_results_display = yearly_results[["snow_year", "Qt (kg/m)", "Control"]].copy()
         yearly_results_display["Qt (tonnes/m)"] = yearly_results_display["Qt (kg/m)"] / 1000
-
-        fig = px.bar(
-            yearly_results_display,
-            x="snow_year",
-            y="Qt (tonnes/m)",
-            text="Qt (tonnes/m)",
-            title="Snow Drift per Year",
-            labels={"snow_year": "Snow Year", "Qt (tonnes/m)": "Qt (tonnes/m)"}
-        )
-        fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-        y_max = yearly_results_display["Qt (tonnes/m)"].max() * 1.1 
-        fig.update_yaxes(range=[0, y_max])
-        st.plotly_chart(fig, use_container_width=False)
-
-        # MONTHLY SNOW DRIFT (COMBINED)
-        def compute_monthly_results(df, T, F, theta):
-            df = df.copy()
-            df["month"] = df["time"].dt.month
-            df["year"] = df["time"].dt.year
-
-            df["snow_season_year"] = df.apply(
-                lambda r: r["year"] - 1 if r["month"] <= 6 else r["year"], axis=1)
-
-            monthly_results = []
-
-            for (season_year, month), df_month in df.groupby(["snow_season_year", "month"]):
-                df_month = df_month.copy()
-                df_month["Swe_hourly"] = df_month.apply(
-                    lambda row: row["precipitation"] if row["temperature_2m"] < 1 else 0,
-                    axis=1)
-                total_Swe = df_month["Swe_hourly"].sum()
-                wind_speeds = df_month["wind_speed_10m"].tolist()
-                result = compute_snow_transport(T, F, theta, total_Swe, wind_speeds)
-
-                month_name = pd.to_datetime(str(month), format="%m").strftime("%B")
-                result["Period"] = f"{month_name} {season_year}"
-                result["Qt (tonnes/m)"] = result["Qt (kg/m)"] / 1000
-                result["Type"] = "Monthly"
-
-                monthly_results.append(result)
-
-            return pd.DataFrame(monthly_results)
-
         monthly_results = compute_monthly_results(df_all, T, F, theta)
 
-        # Prepare yearly drift for combined plot
-        yearly_for_combined = yearly_results_display.rename(
-            columns={"snow_year": "Period", "Qt (tonnes/m)": "Qt (tonnes/m)"}
-        )[["Period", "Qt (tonnes/m)"]].copy()
-        yearly_for_combined["Type"] = "Yearly"
+        # UI selector
+        plot_choice = st.radio(
+            "Select plot type:",
+            ("Yearly Snow Drift", "Monthly Snow Drift", "Combined (Monthly + Yearly)")
+        )
 
-        # Combine
-        combined_df = pd.concat([
-            yearly_for_combined,
-            monthly_results[["Period", "Qt (tonnes/m)", "Type"]]
-        ])
+        if plot_choice == "Yearly Snow Drift":
+            st.subheader("Snow Drift per Year")
+            fig = px.bar(
+                yearly_results_display,
+                x="snow_year",
+                y="Qt (tonnes/m)",
+                text="Qt (tonnes/m)",
+                title="Snow Drift per Year"
+            )
+            fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+            y_max = yearly_results_display["Qt (tonnes/m)"].max() * 1.1
+            fig.update_yaxes(range=[0, y_max])
+            st.plotly_chart(fig, use_container_width=True)
 
-        # Sort in correct chronological order
-        def sorter(period):
-            try:
-                parts = period.split()
-                if len(parts) == 3:
-                    # "July year start – June year end"
-                    return pd.to_datetime(parts[1], format="%Y")
-                else:
-                    return pd.to_datetime(f"{parts[0]} 1 {parts[1]}")
-            except:
-                return pd.Timestamp.now()
+        elif plot_choice == "Monthly Snow Drift":
+            st.subheader("Snow Drift per Month")
+            fig_monthly = px.bar(
+                monthly_results,
+                x="Period",
+                y="Qt (tonnes/m)",
+                text="Qt (tonnes/m)",
+                title="Snow Drift per Month"
+            )
+            fig_monthly.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+            st.plotly_chart(fig_monthly, use_container_width=True)
 
-        combined_df["SortIndex"] = combined_df["Period"].apply(sorter)
-        combined_df = combined_df.sort_values("SortIndex")
+        else:  # Combined
+            yearly_for_combined = yearly_results_display.rename(
+                columns={"snow_year": "Period", "Qt (tonnes/m)": "Qt (tonnes/m)"}
+            )[["Period", "Qt (tonnes/m)"]].copy()
+            yearly_for_combined["Type"] = "Yearly"
 
-        # Combined plot
-        st.subheader(f" Monthly + Yearly Snow Drift for Year Range {year_range}")
-        fig_combined = px.bar(
-            combined_df,
-            x="Period",
-            y="Qt (tonnes/m)",
-            color="Type",
-            barmode="group",
-            title="Monthly + Yearly Snow Drift",
-            labels={"Period": "Time Period", "Qt (tonnes/m)": "Qt (tonnes/m)"})
-        fig_combined.update_layout(xaxis=dict(tickangle=45))
-        st.plotly_chart(fig_combined, use_container_width=True)
+            combined_df = pd.concat([
+                yearly_for_combined,
+                monthly_results[["Period", "Qt (tonnes/m)", "Type"]]
+            ])
+
+            # Sort in correct chronological order
+            def sorter(period):
+                try:
+                    parts = period.split()
+                    if len(parts) == 3:
+                        return pd.to_datetime(parts[1], format="%Y")
+                    else:
+                        return pd.to_datetime(f"{parts[0]} 1 {parts[1]}")
+                except:
+                    return pd.Timestamp.now()
+
+            combined_df["SortIndex"] = combined_df["Period"].apply(sorter)
+            combined_df = combined_df.sort_values("SortIndex")
+
+            st.subheader(f"Monthly + Yearly Snow Drift for Year Range {year_range}")
+            fig_combined = px.bar(
+                combined_df,
+                x="Period",
+                y="Qt (tonnes/m)",
+                color="Type",
+                barmode="group",
+                title="Monthly + Yearly Snow Drift",
+                labels={"Period": "Time Period", "Qt (tonnes/m)": "Qt (tonnes/m)"}
+            )
+            fig_combined.update_layout(xaxis=dict(tickangle=45))
+            st.plotly_chart(fig_combined, use_container_width=True)
 
         # WIND ROSE
+
         avg_sectors = compute_average_sector(df_all)
         overall_avg = yearly_results["Qt (kg/m)"].mean()
 
