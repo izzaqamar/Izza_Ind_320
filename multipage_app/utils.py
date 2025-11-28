@@ -15,22 +15,59 @@ def init_connection():
 
 client = init_connection()
 
+from datetime import datetime
+
 @st.cache_data(ttl=600)
-def get_production_data():
+def get_production_data(year: int = None, start_date: datetime = None, end_date: datetime = None):
     database = client['ind320_production_db']
     collection = database['ind320_production_table_d4']
-    items = list(collection.find())
+    
+    query = {}
+    if year is not None:
+        query = {
+            "startTime": {
+                "$gte": datetime(year, 1, 1),
+                "$lt": datetime(year + 1, 1, 1)
+            }
+        }
+    elif start_date and end_date:
+        query = {
+            "startTime": {
+                "$gte": start_date,
+                "$lt": end_date
+            }
+        }
+    
+    items = list(collection.find(query))
     df = pd.DataFrame(items)
+    
     if 'startTime' in df.columns:
         df['startTime'] = pd.to_datetime(df['startTime'])
     return df
 
+
 @st.cache_data(ttl=600)
-def get_consumption_data():
+def get_consumption_data(year: int = None, start_date: datetime = None, end_date: datetime = None):
     database = client['ind320_production_db']
     collection = database['ind320_consumption_table']
-    items = list(collection.find())
+    
+    query = {}
+    if year is not None:
+        query = {
+            "startTime": {
+                "$gte": datetime(year, 1, 1),
+                "$lt": datetime(year + 1, 1, 1)
+            }
+        }
+    elif start_date and end_date:
+        query = {
+            "startTime": {"$gte": start_date},
+            "endTime": {"$lte": end_date}
+        }
+    
+    items = list(collection.find(query))
     df = pd.DataFrame(items)
+    
     time_columns = ["startTime", "endTime"]
     for col in time_columns:
         if col in df.columns:

@@ -1,7 +1,7 @@
 import streamlit as st
 import pymongo
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, date
 import folium
 import geopandas as gpd
 from shapely.geometry import Point
@@ -31,8 +31,9 @@ if "energy_type" not in st.session_state:
 
 
 # Title
-st.markdown(" ## Norwegian Elspot Price Areas (Energy Data 2021–2024)")
-st.markdown("Click on the map to store coordinates and highlight the corresponding Price Area.")
+st.markdown(" ### Norwegian Elspot Price Areas Selection with Production and Consumption Visualization")
+st.text("Click on the map to store coordinates and highlight the corresponding Price Area. " \
+"After energy data type selection, a choropleth for production or consumption will be displayed.")
 
 # Columns for map and data type
 col1, col2 = st.columns([2, 1])
@@ -76,49 +77,64 @@ for point in st.session_state.clicked_points:
 
 #Controls in right column
 with col2:
-    energy_type = st.radio("Select a data type to visualize on the choropleth map:", ["Energy Production", "Energy Consumption"], index=None)
+    # Step 1: Select energy type
+    energy_type = st.radio(
+        "Select a data type to visualize on the choropleth map:",
+        ["Energy Production", "Energy Consumption"],
+        index=None
+    )
 
     if energy_type:
         st.session_state.energy_type = energy_type
-        # Load data based on selection
-        if energy_type == "Energy Production":
-            df = get_production_data()
-            group_col = "productionGroup"
-        else:
-            df = get_consumption_data()
-            group_col = "consumptionGroup"
 
-        if not df.empty:
-            available_groups = df[group_col].dropna().unique().tolist()
-            selected_groups = st.multiselect("Select energy group(s)", options=available_groups, default=available_groups)
-            group_df = df[df[group_col].isin(selected_groups)]
+        # Calendar date range selector
+        # Start date
+        start_date = st.date_input(
+            "Select start date",
+            value=None,              # No default selected
+            min_value=date(2021, 1, 1),
+            max_value=date(2024, 12, 31)
+        )
 
-            if not group_df.empty:
-                min_date = group_df["startTime"].min()
-                max_date = group_df["startTime"].max()
-                max_span_days = max((max_date - min_date).days, 1)
+        # End date
+        end_date = st.date_input(
+            "Select end date",
+            value=None,              
+            min_value=date(2021, 1, 1),
+            max_value=date(2024, 12, 31)
+        )
+        st.write("Selected interval:", start_date, "to", end_date)
+        # Convert to datetime for database queries
+        if start_date is not None and end_date is not None:
+            start_dt = datetime.combine(start_date, datetime.min.time())  
+            end_dt = datetime.combine(end_date, datetime.max.time()) 
+            
+            #  Load only the selected slice
+            if energy_type == "Energy Production":
+                df = get_production_data(start_date=start_dt, end_date=end_dt)
+                group_col = "productionGroup"
+            else:
+                df = get_consumption_data(start_date=start_dt, end_date=end_dt)
+                group_col = "consumptionGroup"
 
-                days_interval = st.number_input(
-                    "Enter time interval (days)",
-                    min_value=1,
-                    max_value=max_span_days,
-                    value=min(30, max_span_days),
-                    step=30 if max_span_days >= 30 else 1
+            #  Group selection and visualization
+            if not df.empty:
+                available_groups = df[group_col].dropna().unique().tolist()
+                selected_groups = st.multiselect(
+                    "Select energy group(s)",
+                    options=available_groups,
+                    default=available_groups
                 )
-                end_date = max_date
-                start_date = end_date - timedelta(days=int(days_interval))
+                group_df = df[df[group_col].isin(selected_groups)]
 
-                filtered_df = group_df[
-                    (group_df["startTime"] >= start_date) &
-                    (group_df["startTime"] <= end_date)
-                ]
-                st.write("Selected interval:", start_date, "to", end_date)
-                if not filtered_df.empty:
+                if not group_df.empty:
+                    
                     mean_values = (
-                        filtered_df.groupby("priceArea")["quantityKwh"]
+                        group_df.groupby("priceArea")["quantityKwh"]
                         .mean()
                         .reset_index()
                     )
+                    
                     gdf = gdf.copy()
                     gdf["join_key"] = gdf["ElSpotOmr"].str.replace(" ", "")
                     gdf = gdf.merge(mean_values, left_on="join_key", right_on="priceArea", how="left")
@@ -159,7 +175,7 @@ with col2:
                         )
                     ).add_to(m)
 
-# Render map once in left column so we can add choropleth
+# Render map once in left column to add choropleth
 with col1:
     map_data = st_folium(m, width=700, height=500)
 

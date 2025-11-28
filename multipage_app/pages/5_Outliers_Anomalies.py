@@ -7,12 +7,26 @@ from sklearn.neighbors import LocalOutlierFactor
 import scipy.stats as stats
 
 from utils import DATA,api_call, get_coords_by_price_code, area_name
-# Let the user select a Price Area by city name
-selected_price_area = st.selectbox("Select a Price Area:",
-    options=[info["PriceAreaCode"] for info in DATA.values()],
-    format_func=lambda code: area_name(code) )
 
-year = 2021
+st.markdown(' ## Outlier and Anomaly Detection in Weather Data ')
+st.text('This page presents temperature values that fall outside expected ranges and ' \
+'precipitation patterns that deviate from typical conditions. Select year (2000-2024) and area to explore')
+
+col_a,col_b=st.columns(2)
+with col_a:
+    year = st.number_input(
+        "Select year",
+        min_value=2000,
+        max_value=2024,
+        value=2021,
+        step=1)
+
+with col_b:
+# Let the user select a Price Area by city name
+    selected_price_area = st.selectbox("Select a Price Area:",
+        options=[info["PriceAreaCode"] for info in DATA.values()],
+        format_func=lambda code: area_name(code) )
+
 
 # Get coordinates from utils
 coords = get_coords_by_price_code(selected_price_area)

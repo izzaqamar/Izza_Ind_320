@@ -8,15 +8,22 @@ import plotly.express as px
 
 from utils import DATA,api_call, get_coords_by_price_code, area_name
 
-st.markdown(' <h1 style="color:blue;">Weather Data Visualization (2021)</h1>', 
-    unsafe_allow_html=True)
-st.markdown(""" Explore normalized weather data from 2021. Select price area, months and weather variables to visualize trends over time.""")
+st.markdown(" ## Weather Data Insights")
+st.markdown(""" Explore normalized weather data from 2000-2024. Select price area, months and weather variables to visualize trends over time.""")
 
+col1,col2=st.columns(2)
+with col1:
+    year = st.number_input("Select year",
+            min_value=2000,
+            max_value=2024,
+            value=2021,
+            step=1)
+with col2:
 # Let the user select a Price Area  by city name
-selected_price_area = st.selectbox("Select a Price Area:",
-    options=[info["PriceAreaCode"] for info in DATA.values()],
-    format_func=lambda code: area_name(code)) 
-year = 2021
+    selected_price_area = st.selectbox("Select a Price Area:",
+        options=[info["PriceAreaCode"] for info in DATA.values()],
+        format_func=lambda code: area_name(code)) 
+#year = 2021
 
 # Get coordinates from utils
 coords = get_coords_by_price_code(selected_price_area)

@@ -14,7 +14,9 @@ cache_session = requests_cache.CachedSession('.cache', expire_after=-1)
 retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
 openmeteo = openmeteo_requests.Client(session=retry_session)
 
-st.set_page_config(page_title="Annual Snow Drift Analysis", layout="wide")
+st.title(" Snow Drift Analysis")
+st.text('Here you can visualize annual snow drift for a selected range of years (2000-2024), based on chosen map coordinates. ' \
+'Includes yearly drift plots and corresponding wind roses, with optional monthly plots.')
 
 # Helper Functions 
 
@@ -188,9 +190,6 @@ def get_weather_api(lat, lon, year):
 
 # STREAMLIT UI
 
-
-st.title("Snow Drift Analysis ")
-
 if "clicked_points" not in st.session_state or not st.session_state.clicked_points:
     st.warning("Please select a point on the map first.")
     if st.button("➡️ Go to Maps Page"):
@@ -303,3 +302,5 @@ else:
 
         st.subheader("Average Directional Distribution (Wind Rose)")
         plot_rose_plotly(avg_sectors, overall_avg)
+
+        st.caption("Note: Code for this page was taken from Sir(Kristian Hovde Liland).")

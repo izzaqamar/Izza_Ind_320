@@ -12,10 +12,22 @@ from statsmodels.tsa.seasonal import STL
 # DataFrame
 
 from utils import get_production_data
-year = 2021
-production_df = get_production_data()
-production_df = production_df [production_df ['startTime'].dt.year == year]
-st.markdown('## Energy Data for 2021')
+
+st.markdown("## **STL Decomposition & Spectrogram Analysis**")
+st.markdown(
+    "Decompose energy production into seasonal, trend, and residual components using LOESS (STL) "
+    "and explore frequency patterns with spectrograms. Select year, area, and energy groups to visualize seasonal trends and frequency variations."
+)
+
+# Year selector
+year = st.radio("Select Year",options=[2021, 2022, 2023, 2024],index=None)
+
+if year is None:
+    st.warning(" Please select a year to continue.")
+    st.stop()
+# DataFrame
+production_df = get_production_data(year)
+
 
 ### TAB-1 FUNCTION ###
 

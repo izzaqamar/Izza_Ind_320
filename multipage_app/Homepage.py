@@ -62,7 +62,7 @@ PAGES = {
             "Maps": "6_maps"
         },
         "Analysis": {
-            "STL Spectogram": "2_STL_Spectogram"
+            "STL/Spectogram": "2_STL_Spectogram"
         },
         "Forecasting": {
             "Forecast": "9_sarimax"
@@ -70,8 +70,7 @@ PAGES = {
     },
     "Weather": {
         "Visualization": {
-            "Monthly Insights": "3_First_Month_Insights",
-            "Data Visualization": "4_Data_Visualization"
+            "Weather Insights": "4_Data_Visualization"
         },
         "Analysis": {
             "Outliers Anomalies": "5_Outliers_Anomalies",
@@ -100,16 +99,39 @@ if section == "Homepage":
 else:
     # Subgroup selectbox
     subgroup_list = list(PAGES[section].keys())
-    subgroup_default = st.session_state.get("subgroup", subgroup_list[0])
-    subgroup_index = subgroup_list.index(subgroup_default) if subgroup_default in subgroup_list else 0
-    subgroup = st.sidebar.selectbox("Subgroup", subgroup_list, index=subgroup_index)
+    subgroup_default = st.session_state.get("subgroup", None)
+
+    subgroup = st.sidebar.selectbox(
+        "Subgroup",
+        ["Select a subgroup"] + subgroup_list,
+        index=0 if subgroup_default not in subgroup_list else subgroup_list.index(subgroup_default) + 1,
+        placeholder="Select a subgroup"
+    )
+
+    # Stop until user selects a valid subgroup
+    if subgroup not in subgroup_list:
+        st.warning("👉 Please select a subgroup to continue.")
+        st.stop()
+
     st.session_state["subgroup"] = subgroup
 
-    # Page selectbox
+
+    # --- Page selectbox ---
     page_list = list(PAGES[section][subgroup].keys())
-    page_default = st.session_state.get("page_name", page_list[0])
-    page_index = page_list.index(page_default) if page_default in page_list else 0
-    page_name = st.sidebar.selectbox("Page", page_list, index=page_index)
+    page_default = st.session_state.get("page_name", None)
+
+    page_name = st.sidebar.selectbox(
+        "Page",
+        ["Select a page"] + page_list,
+        index=0 if page_default not in page_list else page_list.index(page_default) + 1,
+        placeholder="Select a page"
+    )
+
+    # Stop until user selects a valid page
+    if page_name not in page_list:
+        st.warning("👉 Please select a page to continue.")
+        st.stop()
+
     st.session_state["page_name"] = page_name
 
 
