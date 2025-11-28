@@ -6,14 +6,33 @@ import plotly.graph_objects as go
 from sklearn.neighbors import LocalOutlierFactor
 import scipy.stats as stats
 
-if "df_city" not in st.session_state:
-    st.warning('Select area from page 2 and run page First Month Insights first')
-    st.stop()  # stops execution of the rest of the script
+from utils import DATA,api_call, get_coords_by_price_code, area_name
 
-df_city=st.session_state['df_city']
-st.title('Data from Open-Meteo API')
-st.write("Selected area:", (st.session_state.selected_price_area))
-st.write('Area Name:',st.session_state.area_name)
+st.markdown(' ## Outlier and Anomaly Detection in Weather Data ')
+st.text('This page presents temperature values that fall outside expected ranges and ' \
+'precipitation patterns that deviate from typical conditions. Select year (2000-2024) and area to explore')
+
+col_a,col_b=st.columns(2)
+with col_a:
+    year = st.number_input(
+        "Select year",
+        min_value=2000,
+        max_value=2024,
+        value=2021,
+        step=1)
+
+with col_b:
+# Let the user select a Price Area by city name
+    selected_price_area = st.selectbox("Select a Price Area:",
+        options=[info["PriceAreaCode"] for info in DATA.values()],
+        format_func=lambda code: area_name(code) )
+
+
+# Get coordinates from utils
+coords = get_coords_by_price_code(selected_price_area)
+
+# Call the API
+df_city = api_call(coords, year)
 
 #Contains tab-1: Temp-Outlier/SPC analysis   tab-2:Precipitation-Anomaly/LOF analysis
 # Tabs 

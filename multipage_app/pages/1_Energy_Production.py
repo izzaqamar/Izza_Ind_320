@@ -5,56 +5,34 @@ import pandas as pd
 import plotly.express as px
 import calendar
 
-if "selected_price_area" not in st.session_state:
-    st.session_state.selected_price_area = 'NO1'
-    
-st.write("Selected area:", (st.session_state.selected_price_area))
 
-# Initialize connection.
-# Uses st.cache_resource to only run once.
-@st.cache_resource
-def init_connection():
-    return pymongo.MongoClient(st.secrets["mongo"]["uri"])
+from utils import get_production_data 
 
-client = init_connection()
+st.markdown(" ##  Energy Production Insights  ")
+st.text(
+    "Analyze the distribution of energy production among different price areas and observe how selected groups change throughout the months." \
+    " A pie plot and line plot are included to support interpretation."
+)
+# Year selector
+year = st.radio("Select Year",options=[2021, 2022, 2023, 2024],index=None)
 
-# Pull data from the collection.
-# Uses st.cache_data to only rerun when the query changes or after 10 min.
-@st.cache_data(ttl=600)
-def get_data():
-    database=client['ind320_production_db']
-    collection=database['ind320_production_table']
-    items = collection.find()
-    items = list(items)
-    return items
-
-all_items = get_data()
-
-# Convert to Pandas DataFrame
-mongodb_df = pd.DataFrame(all_items)
-#Getting the time in UTC format
-mongodb_df['startTime'] = pd.to_datetime(mongodb_df['startTime'], utc=True)
-
-st.markdown(" ## **Visualisations of data fetched from MongoDB**")
+if year is None:
+    st.warning(" Please select a year to continue.")
+    st.stop()
+# DataFrame
+mongodb_df = get_production_data(year)
 
 #Using st.columns to split view in 2 parts
 col_left,col_right=st.columns(2)
-
-
-# Callback function for price area
-def update_area():
-    # This runs whenever radio selection changes
-    st.session_state["selected_price_area"] = st.session_state["price_area_radio"]
-    st.write(f"Session state updated to: {st.session_state['selected_price_area']}")
 
 #For the left side containing pie plot
 with col_left:
     st.subheader("A pie plot")
     st.write("") 
-    st.write("View the total production of different energy groups for the year 2021 in the selected area.")
+    st.write(f"View the total production of different energy groups for the {year} in the selected area.")
     
     price_areas = sorted(mongodb_df['priceArea'].unique())
-    selected_price_area=st.radio("Select an area:",price_areas,key="price_area_radio",on_change=update_area)
+    selected_price_area=st.radio("Select an area:",price_areas,key="price_area_radio")
 
     if selected_price_area:
         filtered_df_area=mongodb_df[mongodb_df["priceArea"]==selected_price_area]\
