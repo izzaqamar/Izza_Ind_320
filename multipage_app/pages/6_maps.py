@@ -7,7 +7,7 @@ import geopandas as gpd
 from shapely.geometry import Point
 from streamlit_folium import st_folium
 import numpy as np
-
+import os 
 from utils import get_production_data, get_consumption_data
 
 # Load GeoJSON 
@@ -17,7 +17,7 @@ def load_geojson(path):
     gdf = gdf.to_crs(epsg=4326)
     return gdf
 
-geojson_path = r"D:\NMBU\semester_1\IND-320\Izza_Ind_320\multipage_app\pages\maps_area.geojson"
+geojson_path = os.path.join(os.path.dirname(__file__), "maps_area.geojson")
 gdf = load_geojson(geojson_path)
 
 #Initialize session state for clicks
